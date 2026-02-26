@@ -1,0 +1,43 @@
+:root {
+  /* 调色板 - 由用户指定 */
+  --primary: #66ccff;
+  --primary-glow: rgba(102, 204, 255, 0.4);
+  --accent: #00ffcc;
+  --accent-glow: rgba(0, 255, 204, 0.4);
+  
+  /* 语义颜色 */
+  --success: #10b981;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+
+  /* 这种“毛玻璃/Fluent”风格的背景色 */
+  --bg-app: #f0f4f8;
+  --bg-sidebar: rgba(255, 255, 255, 0.8);
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-modal: rgba(255, 255, 255, 0.95);
+  
+  /* 文字颜色 */
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-on-primary: #ffffff;
+
+  /* 边框与边距 */
+  --border-color: rgba(0, 0, 0, 0.05);
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 20px;
+  --border-radius-full: 9999px;
+
+  /* 阴影与特效 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --glass-stroke: 1px solid rgba(255, 255, 255, 0.3);
+  --glass-blur: blur(12px);
+
+  /* 过渡动画 */
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

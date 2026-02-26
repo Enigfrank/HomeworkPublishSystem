@@ -1,0 +1,151 @@
+.feature-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.feature-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.filter-pills {
+    display: flex;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.03);
+    padding: 4px;
+    border-radius: var(--border-radius-full);
+}
+
+.pill {
+    padding: 6px 16px;
+    border-radius: var(--border-radius-full);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.pill:hover {
+    background: rgba(0, 0, 0, 0.02);
+    color: var(--primary);
+}
+
+.pill.active {
+    background: var(--primary);
+    color: var(--text-on-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.assignments-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.assignment-card {
+    padding: 24px;
+    border-radius: var(--border-radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.assignment-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg), 0 0 20px var(--primary-glow);
+    border-color: var(--primary);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.subject-tag {
+    padding: 4px 12px;
+    border-radius: var(--border-radius-sm);
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.time-stamp {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.card-excerpt {
+    font-size: 14px;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.6;
+}
+
+.card-footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.teacher-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.status-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.unread-dot {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 8px;
+    height: 8px;
+    background: var(--error);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--error);
+}
+
+/* 状态色 */
+.assignment-card.acknowledged {
+    border-left: 4px solid var(--success);
+}
+
+.assignment-card.read {
+    border-left: 4px solid var(--info);
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+    .assignments-grid {
+        grid-template-columns: 1fr;
+    }
+}
