@@ -122,6 +122,10 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('auto_login');
+    localStorage.removeItem('saved_username');
+    localStorage.removeItem('saved_password');
+    localStorage.removeItem('first_login_pending');
     navigate('/login');
   };
 
@@ -295,7 +299,7 @@ export default function AdminDashboard() {
               <CardContent>
                 <div className="space-y-2">
                   <p><strong>系统版本：</strong>v1.0.0</p>
-                  <p><strong>当前用户：</strong>{user.name} ({user.username})</p>      
+                  <p><strong>当前用户：</strong>{user.name} ({user.username})</p>
                 </div>
               </CardContent>
             </Card>

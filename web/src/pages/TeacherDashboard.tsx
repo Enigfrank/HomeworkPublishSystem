@@ -146,6 +146,10 @@ export default function TeacherDashboard() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('auto_login');
+    localStorage.removeItem('saved_username');
+    localStorage.removeItem('saved_password');
+    localStorage.removeItem('first_login_pending');
     navigate('/login');
   };
 
