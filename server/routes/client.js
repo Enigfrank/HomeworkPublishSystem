@@ -57,6 +57,8 @@ router.post('/register', (req, res) => {
   } else {
     // 创建新客户端
     const newClientId = uuidv4();
+    const clientIp = req.ip || req.socket.remoteAddress || '未知IP';
+    console.log(`收到来自${clientIp}的请求,下发UUID为:${newClientId}`);
     db.run(
       `INSERT INTO clients (client_id, name, last_seen) VALUES (?, ?, CURRENT_TIMESTAMP)`,
       [newClientId, name || null],
