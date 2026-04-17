@@ -1,6 +1,6 @@
 # 远程作业发布系统 HomeworkPublishSystem
 
-一个完整的作业发布与接收系统, 包含管理后台, 教师网页端和学生桌面客户端.
+一个完整的作业发布系统, 包含管理后台与教师网页端.
 
 **免责声明** : 该项目多处使用AI辅助编写, 如您对Vibe Coding有不一样的观点, 您可能并不适合使用本项目
 
@@ -20,17 +20,6 @@
 -  学科自动关联（发送的作业会显示学科颜色）
 -  实时推送通知
 -  查看作业阅读状态
-
-### 学生客户端
--  实时接收作业通知
--  系统托盘后台运行
--  新作业弹窗提醒
--  标记已读/确认收到
--  查看历史作业
-
-![client](./photo/client2.png)
-![client](./photo/client1.png)
-
 
 ## 快速开始
 
@@ -58,21 +47,9 @@ npm start
 ### 3. 教师发布作业
 
 1. 使用老师账户登录 http://localhost:3000
-2. 选择发送对象（班级或具体客户端）
+2. 选择发送对象
 3. 输入作业标题和内容
 4. 点击发布
-
-### 4. 学生接收作业
-
-```bash
-cd client
-npm install
-npm start
-```
-
-1. 首次打开设置服务器地址
-2. 保持客户端运行
-3. 收到作业时会有系统通知
 
 ## 部署指南
 
@@ -109,19 +86,6 @@ npm run build
 
 将 `dist` 目录复制到服务器的 `public` 文件夹中.
 
-### 客户端部署
-
-构建可执行文件：
-
-```bash
-cd client
-npm install
-npm run build:win    # Windows
-npm run build:mac    # macOS
-npm run build:linux  # Linux
-```
-
-
 ## 技术栈
 
 | 组件 | 技术 |
@@ -130,7 +94,6 @@ npm run build:linux  # Linux
 | 实时通信 | WebSocket |
 | 管理后台 | React + TypeScript + Tailwind CSS |
 | 教师端 | React + TypeScript + Tailwind CSS |
-| 学生端 | Electron + Vanilla JS |
 
 ## 项目结构
 
@@ -149,12 +112,6 @@ homework-system/
 │   │   ├── services/    # API服务
 │   │   └── types/       # 类型定义
 │   └── README.md        # 前端文档
-│
-├── client/              # 学生桌面客户端
-│   ├── main.js          # 主进程
-│   ├── preload.js       # 预加载脚本
-│   ├── renderer/        # 渲染进程
-│   └── README.md        # 客户端文档
 │
 ├── 集成指南.md       # 集成指南
 └── README.md            # 本文档
@@ -177,14 +134,8 @@ homework-system/
 
 ### 教师
 - `GET /api/teacher/classes` - 获取班级列表
-- `GET /api/teacher/clients` - 获取在线客户端
 - `GET /api/teacher/assignments` - 获取作业列表
 - `POST /api/teacher/assignments` - 发布作业
-
-### 客户端
-- `POST /api/client/register` - 注册客户端
-- `GET /api/client/assignments/:id` - 获取作业列表
-- `POST /api/client/assignments/:id/read` - 标记已读
 
 ## 配置说明
 
@@ -194,13 +145,6 @@ homework-system/
 - `PORT` - 服务器端口（默认：3000）
 - `JWT_SECRET` - JWT密钥（生产环境请修改）
 - `NODE_ENV` - 运行环境
-
-### 客户端配置
-
-首次运行时配置：
-- 服务器地址
-- 客户端名称
-- 所属班级
 
 ## 数据备份
 
