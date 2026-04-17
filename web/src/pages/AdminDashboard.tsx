@@ -14,7 +14,7 @@ import {
   Users, BookOpen, LayoutDashboard,
   Plus, Edit, Trash2, LogOut, AlertCircle, School, Monitor
 } from 'lucide-react';
-import { adminAPI } from '@/services/api';
+import { adminAPI, getWebSocketURL } from '@/services/api';
 import ChangePasswordDialog from '@/components/ChangePasswordDialog';
 import FirstLoginPasswordDialog from '@/components/FirstLoginPasswordDialog';
 import type { User, Subject, Client, Stats } from '@/types';
@@ -52,8 +52,7 @@ export default function AdminDashboard() {
     fetchData();
 
     // 建立 WebSocket 连接以获取实时状态更新
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
+    const wsUrl = getWebSocketURL();
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => console.log('管理员 WebSocket：已建立同步通道');

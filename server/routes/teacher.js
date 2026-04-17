@@ -1,13 +1,38 @@
 const express = require('express');
 const { db } = require('../database');
 const { authenticateToken, requireTeacher } = require('../middleware/auth');
-const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
 // 所有路由都需要教师权限
 router.use(authenticateToken);
 router.use(requireTeacher);
+
+/**
+ * 查询当前登录用户在数据库中的最新学科与姓名信息
+ * 用于避免继续使用 JWT 中已过期的学科快照
+ * @param {number} userId 当前登录用户 ID
+ * @returns {Promise<{teacher_id:number,name:string,subject_id:number|null,subject_name:string|null,subject_code:string|null,subject_color:string|null}|undefined>}
+ */
+function getCurrentTeacherInfo(userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT u.id as teacher_id, u.name, u.subject_id,
+              s.name as subject_name, s.code as subject_code, s.color as subject_color
+       FROM users u
+       LEFT JOIN subjects s ON u.subject_id = s.id
+       WHERE u.id = ?`,
+      [userId],
+      (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(row);
+      }
+    );
+  });
+}
 
 /**
  * 获取所有客户端（包含在线状态）
@@ -40,10 +65,9 @@ router.get('/clients', (req, res) => {
  * 若全部插入成功，借助 WebSocket 向所有指定客户端实时推送事件
  * @route POST /assignments
  */
-router.post('/assignments', (req, res) => {
+router.post('/assignments', async (req, res) => {
   const { title, content, client_ids } = req.body;
   const teacher_id = req.user.id;
-  const subject_id = req.user.subject_id;
 
   if (!title || !content) {
     return res.status(400).json({ error: '请提供作业标题和内容' });
@@ -53,7 +77,18 @@ router.post('/assignments', (req, res) => {
     return res.status(400).json({ error: '请选择发送对象（具体客户端）' });
   }
 
-  if (!subject_id) {
+  let currentTeacher;
+  try {
+    currentTeacher = await getCurrentTeacherInfo(teacher_id);
+  } catch (err) {
+    return res.status(500).json({ error: '获取教师信息失败' });
+  }
+
+  if (!currentTeacher) {
+    return res.status(404).json({ error: '教师账户不存在' });
+  }
+
+  if (!currentTeacher.subject_id) {
     return res.status(400).json({ error: '您还没有分配教学学科，请联系管理员' });
   }
 
@@ -65,7 +100,7 @@ router.post('/assignments', (req, res) => {
     db.run(
       `INSERT INTO assignments (title, content, teacher_id, subject_id, client_id)
        VALUES (?, ?, ?, ?, ?)`,
-      [title, content, teacher_id, subject_id, JSON.stringify(client_ids)],
+      [title, content, teacher_id, currentTeacher.subject_id, JSON.stringify(client_ids)],
       function (err) {
         if (err) {
           db.run('ROLLBACK');
@@ -113,9 +148,9 @@ router.post('/assignments', (req, res) => {
                   id: assignmentId,
                   title,
                   content,
-                  subject: req.user.subject_name,
-                  subject_color: req.user.subject_color,
-                  teacher: req.user.name,
+                  subject: currentTeacher.subject_name,
+                  subject_color: currentTeacher.subject_color,
+                  teacher: currentTeacher.name,
                   created_at: new Date().toISOString()
                 }
               });
@@ -140,7 +175,7 @@ router.post('/assignments', (req, res) => {
 
 /**
  * 分页获取当前教师已发布的历史作业记录
- * 内置对作业各项查看维度(下发总数/已读总数)的统计查询
+ * 内置对作业各项查看维度(下发总数/已确认总数)的统计查询
  * @route GET /assignments
  */
 router.get('/assignments', (req, res) => {
@@ -153,7 +188,7 @@ router.get('/assignments', (req, res) => {
             strftime('%Y-%m-%dT%H:%M:%SZ', a.created_at) as created_at,
             s.name as subject_name, s.color as subject_color,
             (SELECT COUNT(*) FROM messages WHERE assignment_id = a.id) as recipient_count,
-            (SELECT COUNT(*) FROM messages WHERE assignment_id = a.id AND status = 'read') as read_count
+            (SELECT COUNT(*) FROM messages WHERE assignment_id = a.id AND status = 'acknowledged') as acknowledged_count
      FROM assignments a
      JOIN subjects s ON a.subject_id = s.id
      WHERE a.teacher_id = ?
@@ -190,7 +225,7 @@ router.get('/assignments', (req, res) => {
 
 /**
  * 获取具体某次下发作业的详细信息（含具体投递情况）
- * 数据返回包括该作业本身及每条投递消息(Message)的抵达/阅读详情
+ * 数据返回包括该作业本身及每条投递消息(Message)的确认详情
  * @route GET /assignments/:id
  */
 router.get('/assignments/:id', (req, res) => {
@@ -217,7 +252,7 @@ router.get('/assignments/:id', (req, res) => {
       db.all(
         `SELECT m.id, m.assignment_id, m.client_id, m.status,
                 strftime('%Y-%m-%dT%H:%M:%SZ', m.created_at) as created_at,
-                strftime('%Y-%m-%dT%H:%M:%SZ', m.read_at) as read_at,
+                strftime('%Y-%m-%dT%H:%M:%SZ', m.acknowledged_at) as acknowledged_at,
                 c.name as client_name
          FROM messages m
          LEFT JOIN clients c ON m.client_id = c.client_id
@@ -272,21 +307,26 @@ router.put('/assignments/:id/cancel', (req, res) => {
  * 用于在前端面板呈现主题色与学科名标识
  * @route GET /my-subject
  */
-router.get('/my-subject', (req, res) => {
-  if (!req.user.subject_id) {
+router.get('/my-subject', async (req, res) => {
+  let currentTeacher;
+  try {
+    currentTeacher = await getCurrentTeacherInfo(req.user.id);
+  } catch (err) {
+    return res.status(500).json({ error: '获取学科信息失败' });
+  }
+
+  if (!currentTeacher || !currentTeacher.subject_id) {
     return res.json({ subject: null });
   }
 
-  db.get(
-    'SELECT * FROM subjects WHERE id = ?',
-    [req.user.subject_id],
-    (err, row) => {
-      if (err) {
-        return res.status(500).json({ error: '获取学科信息失败' });
-      }
-      res.json({ subject: row });
+  res.json({
+    subject: {
+      id: currentTeacher.subject_id,
+      name: currentTeacher.subject_name,
+      code: currentTeacher.subject_code,
+      color: currentTeacher.subject_color
     }
-  );
+  });
 });
 
 module.exports = router;

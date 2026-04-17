@@ -1,7 +1,7 @@
 const express = require('express');
 const { db } = require('../database');
 const { v4: uuidv4 } = require('uuid');
-const { notifyClients, broadcastToAll } = require('../websocket');
+const { broadcastToAll } = require('../websocket');
 
 const router = express.Router();
 
@@ -101,7 +101,7 @@ router.get('/info/:client_id', (req, res) => {
 
 /**
  * 获取指定客户端的接收作业列表
- * 支持基于阅读状态的过滤 (all, unread, read, acknowledged)
+ * 支持基于确认状态的过滤 (all, pending, acknowledged)
  * @route GET /assignments/:client_id
  */
 router.get('/assignments/:client_id', (req, res) => {
@@ -113,7 +113,7 @@ router.get('/assignments/:client_id', (req, res) => {
            strftime('%Y-%m-%dT%H:%M:%SZ', a.created_at) as created_at,
            s.name as subject_name, s.color as subject_color,
            u.name as teacher_name, m.status as message_status,
-           strftime('%Y-%m-%dT%H:%M:%SZ', m.read_at) as read_at
+           strftime('%Y-%m-%dT%H:%M:%SZ', m.acknowledged_at) as acknowledged_at
     FROM messages m
     JOIN assignments a ON m.assignment_id = a.id
     JOIN subjects s ON a.subject_id = s.id
@@ -139,41 +139,10 @@ router.get('/assignments/:client_id', (req, res) => {
 });
 
 /**
- * 更新特定作业在当前客户端的状态为“已读”
- * 并在服务端向所有活跃的教师大屏发送实时刷新通知
- * @route POST /assignments/:assignment_id/read
+ * 确认客户端已收到目标作业，并向教师端广播确认事件
+ * 重复确认时保留首次确认时间，避免覆盖历史记录
+ * @route POST /assignments/:assignment_id/acknowledge
  */
-router.post('/assignments/:assignment_id/read', (req, res) => {
-  const { assignment_id } = req.params;
-  const { client_id } = req.body;
-
-  if (!client_id) {
-    return res.status(400).json({ error: '请提供客户端ID' });
-  }
-
-  db.run(
-    `UPDATE messages SET status = 'read', read_at = CURRENT_TIMESTAMP 
-     WHERE assignment_id = ? AND client_id = ?`,
-    [assignment_id, client_id],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: '标记已读失败' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: '消息不存在' });
-      }
-      res.json({ message: '已标记为已读' });
-
-      // 广播状态更新给所有连接（如教师仪表盘）
-      broadcastToAll({
-        type: 'assignment_status_updated',
-        data: { assignment_id, client_id, status: 'read' }
-      });
-    }
-  );
-});
-
-// 确认收到作业
 router.post('/assignments/:assignment_id/acknowledge', (req, res) => {
   const { assignment_id } = req.params;
   const { client_id } = req.body;
@@ -183,7 +152,9 @@ router.post('/assignments/:assignment_id/acknowledge', (req, res) => {
   }
 
   db.run(
-    `UPDATE messages SET status = 'acknowledged', read_at = CURRENT_TIMESTAMP 
+    `UPDATE messages
+     SET status = 'acknowledged',
+         acknowledged_at = COALESCE(acknowledged_at, CURRENT_TIMESTAMP)
      WHERE assignment_id = ? AND client_id = ?`,
     [assignment_id, client_id],
     function (err) {
@@ -197,33 +168,17 @@ router.post('/assignments/:assignment_id/acknowledge', (req, res) => {
 
       // 广播状态更新给所有连接（如教师仪表盘）
       broadcastToAll({
-        type: 'assignment_status_updated',
+        type: 'assignment_acknowledged',
         data: { assignment_id, client_id, status: 'acknowledged' }
       });
     }
   );
 });
 
-// 获取未读消息数量
-router.get('/unread-count/:client_id', (req, res) => {
-  const { client_id } = req.params;
-
-  db.get(
-    `SELECT COUNT(*) as count 
-     FROM messages m
-     JOIN assignments a ON m.assignment_id = a.id
-     WHERE m.client_id = ? AND m.status = 'unread' AND a.status = 'active'`,
-    [client_id],
-    (err, row) => {
-      if (err) {
-        return res.status(500).json({ error: '获取未读数量失败' });
-      }
-      res.json({ unread_count: row.count });
-    }
-  );
-});
-
-// 更新客户端在线状态
+/**
+ * 更新客户端在线状态心跳时间
+ * @route POST /heartbeat
+ */
 router.post('/heartbeat', (req, res) => {
   const { client_id } = req.body;
 

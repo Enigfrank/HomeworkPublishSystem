@@ -14,6 +14,97 @@ if (!fs.existsSync(dataDir)) {
 const db = new sqlite3.Database(DB_PATH);
 
 /**
+ * 将旧版 messages 表迁移为仅保留确认状态的新结构
+ * 旧数据中仅 acknowledged 会保留为已确认，其余状态统一折叠为 pending
+ * @returns {Promise<void>}
+ */
+function migrateMessagesTable() {
+  return new Promise((resolve, reject) => {
+    db.all(`PRAGMA table_info(messages)`, (err, columns) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (!columns || columns.length === 0) {
+        resolve();
+        return;
+      }
+
+      const hasAcknowledgedAt = columns.some((col) => col.name === 'acknowledged_at');
+      const hasReadAt = columns.some((col) => col.name === 'read_at');
+
+      if (hasAcknowledgedAt && !hasReadAt) {
+        resolve();
+        return;
+      }
+
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.run('ALTER TABLE messages RENAME TO messages_old', (renameErr) => {
+          if (renameErr) {
+            db.run('ROLLBACK');
+            reject(renameErr);
+            return;
+          }
+
+          db.run(`CREATE TABLE messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assignment_id INTEGER NOT NULL,
+            client_id TEXT NOT NULL,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'acknowledged')),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            acknowledged_at DATETIME,
+            FOREIGN KEY (assignment_id) REFERENCES assignments(id)
+          )`, (createErr) => {
+            if (createErr) {
+              db.run('ROLLBACK');
+              reject(createErr);
+              return;
+            }
+
+            db.run(
+              `INSERT INTO messages (id, assignment_id, client_id, status, created_at, acknowledged_at)
+               SELECT id,
+                      assignment_id,
+                      client_id,
+                      CASE WHEN status = 'acknowledged' THEN 'acknowledged' ELSE 'pending' END,
+                      created_at,
+                      CASE WHEN status = 'acknowledged' THEN read_at ELSE NULL END
+               FROM messages_old`,
+              (copyErr) => {
+                if (copyErr) {
+                  db.run('ROLLBACK');
+                  reject(copyErr);
+                  return;
+                }
+
+                db.run('DROP TABLE messages_old', (dropErr) => {
+                  if (dropErr) {
+                    db.run('ROLLBACK');
+                    reject(dropErr);
+                    return;
+                  }
+
+                  db.run('COMMIT', (commitErr) => {
+                    if (commitErr) {
+                      db.run('ROLLBACK');
+                      reject(commitErr);
+                      return;
+                    }
+                    resolve();
+                  });
+                });
+              }
+            );
+          });
+        });
+      });
+    });
+  });
+}
+
+/**
  * 异步初始化数据库表结构并返回 Promise
  * 包含：users, subjects, clients, assignments, messages 表
  * @returns {Promise<void>} 成功时 resolve，失败时 reject
@@ -21,6 +112,12 @@ const db = new sqlite3.Database(DB_PATH);
 function initDatabase() {
   return new Promise((resolve, reject) => {
     db.serialize(() => {
+      db.run('PRAGMA foreign_keys = ON', (err) => {
+        if (err) {
+          reject(err);
+        }
+      });
+
       // 用户表（管理员和老师）
       db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,9 +170,9 @@ function initDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         assignment_id INTEGER NOT NULL,
         client_id TEXT NOT NULL,
-        status TEXT DEFAULT 'unread' CHECK(status IN ('unread', 'read', 'acknowledged')),
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'acknowledged')),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        read_at DATETIME,
+        acknowledged_at DATETIME,
         FOREIGN KEY (assignment_id) REFERENCES assignments(id)
       )`);
 
@@ -93,7 +190,7 @@ function initDatabase() {
 async function migrateDatabase() {
   return new Promise((resolve, reject) => {
     // 检查 users 表是否已存在 first_login 列
-    db.all(`PRAGMA table_info(users)`, (err, columns) => {
+    db.all(`PRAGMA table_info(users)`, async (err, columns) => {
       if (err) {
         console.error('检查表结构失败:', err);
         reject(err);
@@ -125,10 +222,20 @@ async function migrateDatabase() {
             console.error('设置 admin 首次登录状态失败:', e);
           }
           
-          resolve();
+          try {
+            await migrateMessagesTable();
+            resolve();
+          } catch (migrationErr) {
+            reject(migrationErr);
+          }
         });
       } else {
-        resolve();
+        try {
+          await migrateMessagesTable();
+          resolve();
+        } catch (migrationErr) {
+          reject(migrationErr);
+        }
       }
     });
   });

@@ -46,7 +46,6 @@ export interface Assignment {
   target_count?: number;
   acknowledged_count?: number;
   recipient_count?: number;
-  read_count?: number;
 }
 
 // 消息类型
@@ -55,10 +54,9 @@ export interface Message {
   assignment_id: number;
   client_id: string;
   client_name?: string;
-  status: 'unread' | 'read' | 'acknowledged';
+  status: 'pending' | 'acknowledged';
   created_at: string;
-  read_at?: string;
-  updated_at?: string;
+  acknowledged_at?: string;
 }
 
 // 统计数据

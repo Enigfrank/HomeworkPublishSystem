@@ -16,9 +16,9 @@ import {
   Send, History, LogOut, AlertCircle,
   CheckCircle, XCircle, Eye, BookOpen, RefreshCw
 } from 'lucide-react';
-import { teacherAPI } from '@/services/api';
+import { getWebSocketURL, teacherAPI } from '@/services/api';
 import ChangePasswordDialog from '@/components/ChangePasswordDialog';
-import type { Client, Assignment, Subject } from '@/types';
+import type { Client, Assignment, Subject, Message } from '@/types';
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export default function TeacherDashboard() {
 
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
-  const [assignmentMessages, setAssignmentMessages] = useState<any[]>([]);
+  const [assignmentMessages, setAssignmentMessages] = useState<Message[]>([]);
 
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
@@ -53,17 +53,15 @@ export default function TeacherDashboard() {
     }, 10000); // 延长轮询间隔，主要依赖WS
 
     // WebSocket 实时更新
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // 优先使用 API 服务地址的 host，如果没有则使用当前窗口 host
-    const wsUrl = `${protocol}//${window.location.host}`;
+    const wsUrl = getWebSocketURL();
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => console.log('WebSocket 驱动：已连接到服务器');
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'assignment_status_updated') {
-          console.log('收到作业更新通知:', data);
+        if (data.type === 'assignment_acknowledged') {
+          console.log('收到作业确认通知:', data);
           // 如果正在查看详情，刷新详情
           if (detailDialogOpen && selectedAssignment && selectedAssignment.id === data.data.assignment_id) {
             handleViewAssignment(selectedAssignment);
@@ -237,10 +235,14 @@ export default function TeacherDashboard() {
     }
   };
 
+  /**
+   * 根据当前消息确认状态生成对应的可视化标签
+   * @param status 当前消息状态
+   * @returns 状态徽标组件
+   */
   const getMessageStatusBadge = (status: string) => {
     switch (status) {
-      case 'unread': return <Badge variant="outline" className="text-gray-500">未读</Badge>;
-      case 'read': return <Badge variant="outline" className="text-blue-500">已读</Badge>;
+      case 'pending': return <Badge variant="outline" className="text-amber-600">待确认</Badge>;
       case 'acknowledged': return <Badge className="bg-green-500">已确认</Badge>;
       default: return <Badge variant="outline">未知</Badge>;
     }
@@ -409,7 +411,7 @@ export default function TeacherDashboard() {
                     </div>
                     <div className="flex items-start gap-2">
                       <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                      <p>可以查看学生的阅读状态</p>
+                      <p>可以查看学生的确认状态</p>
                     </div>
                     <div className="flex items-start gap-2">
                       <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
@@ -510,7 +512,7 @@ export default function TeacherDashboard() {
                   <TableRow>
                     <TableHead>客户端</TableHead>
                     <TableHead>状态</TableHead>
-                    <TableHead>更新时间</TableHead>
+                    <TableHead>确认时间</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -518,7 +520,7 @@ export default function TeacherDashboard() {
                     <TableRow key={msg.id}>
                       <TableCell>{msg.client_name || msg.client_id}</TableCell>
                       <TableCell>{getMessageStatusBadge(msg.status)}</TableCell>
-                      <TableCell>{msg.updated_at ? new Date(msg.updated_at).toLocaleString() : '-'}</TableCell>
+                      <TableCell>{msg.acknowledged_at ? new Date(msg.acknowledged_at).toLocaleString() : '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

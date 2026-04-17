@@ -1,15 +1,46 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
 
-// 从环境变量或本地存储获取API基础URL
+/**
+ * 统一规范化 API 基础地址，移除尾部多余斜杠
+ * @param url 原始地址
+ * @returns 规范化后的地址
+ */
+const normalizeBaseURL = (url: string) => url.replace(/\/+$/, '');
+
+/**
+ * 从环境变量或本地存储获取当前请求应使用的 API 基础地址
+ * @returns 当前有效的 API 基础地址
+ */
 const getBaseURL = () => {
   const savedURL = localStorage.getItem('api_url');
-  if (savedURL) return savedURL;
+  if (savedURL) return normalizeBaseURL(savedURL);
 
   if (import.meta.env.DEV) {
     return 'http://localhost:3000/api';
   }
 
   return '/api';
+};
+
+/**
+ * 根据当前 API 地址推导对应的 WebSocket 地址
+ * 支持同域部署和前后端分离部署两种场景
+ * @returns 当前有效的 WebSocket 地址
+ */
+export const getWebSocketURL = () => {
+  const apiBaseURL = getBaseURL();
+
+  if (apiBaseURL.startsWith('http://') || apiBaseURL.startsWith('https://')) {
+    const url = new URL(apiBaseURL);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.pathname = '';
+    url.search = '';
+    url.hash = '';
+    return normalizeBaseURL(url.toString());
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}`;
 };
 
 const api: AxiosInstance = axios.create({
@@ -22,6 +53,7 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+    config.baseURL = getBaseURL();
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -111,11 +143,8 @@ export const clientAPI = {
   getInfo: (clientId: string) => api.get(`/client/info/${clientId}`),
   getAssignments: (clientId: string, status?: string) =>
     api.get(`/client/assignments/${clientId}${status ? `?status=${status}` : ''}`),
-  markRead: (assignmentId: number, clientId: string) =>
-    api.post(`/client/assignments/${assignmentId}/read`, { client_id: clientId }),
   acknowledge: (assignmentId: number, clientId: string) =>
     api.post(`/client/assignments/${assignmentId}/acknowledge`, { client_id: clientId }),
-  getUnreadCount: (clientId: string) => api.get(`/client/unread-count/${clientId}`),
   heartbeat: (clientId: string) => api.post('/client/heartbeat', { client_id: clientId })
 };
 
